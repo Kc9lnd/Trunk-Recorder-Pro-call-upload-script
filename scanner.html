@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>YOUR-WEBSITE – Live Scanner</title>
+<style>
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#0f172a;color:#f8fafc;display:flex;flex-direction:column}
+main{flex:1;max-width:900px;width:100%;margin:0 auto;padding:28px 18px}
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:20px}
+h1{font-size:26px;margin:0}
+.sub{color:#94a3b8;font-size:14px;margin:4px 0 0}
+.ctrls{display:flex;gap:10px;flex-wrap:wrap}
+.btn,#flt{background:#1e293b;color:#f8fafc;border:1px solid rgba(255,255,255,.18);padding:8px 13px;border-radius:6px;font-size:13.5px}
+.btn{font-weight:600;cursor:pointer}
+.btn.live{background:#0284c7;border-color:#38bdf8}
+.pcard{background:#1e293b;border:1px solid rgba(255,255,255,.14);border-left:4px solid #38bdf8;border-radius:8px;padding:16px;margin-bottom:20px}
+.nlbl{font-size:11.5px;text-transform:uppercase;color:#38bdf8;font-weight:700}
+.ntg{font-size:18px;font-weight:700;margin:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.nmeta{font:12.5px monospace;color:#94a3b8;margin-bottom:10px}
+audio{width:100%;height:38px}
+#clist{display:flex;flex-direction:column;gap:8px}
+.crow{background:#1e293b;border:1px solid rgba(255,255,255,.08);border-left:4px solid #64748b;border-radius:7px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer}
+.crow:hover{background:#273549}
+.crow.play{border-color:#38bdf8;background:#172554}
+.tgn{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bdg{font:700 10.5px sans-serif;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:4px;color:#fff}
+.tgs{font:12px monospace;color:#94a3b8;margin-top:4px}
+.units{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.uchip{background:rgba(15,23,42,.75);border:1px solid rgba(255,255,255,.14);border-radius:4px;padding:2px 6px;font:11.5px monospace;color:#e2e8f0}
+.ctm{text-align:right;font:12.5px monospace;color:#cbd5e1;white-space:nowrap}
+footer{border-top:1px solid rgba(255,255,255,.12);background:#0b1120;color:#94a3b8;text-align:center;font-size:13px;padding:18px;margin-top:36px}
+</style>
+</head>
+<body>
+<div id="site-header"></div>
+<script src="/header.js"></script>
+<main>
+  <div class="top">
+    <div><h1>Live Radio Scanner</h1><p class="sub" id="st">YOUR-CITY &middot; Loading calls...</p></div>
+    <div class="ctrls"><select id="flt"><option value="all">All Talkgroups</option></select><button class="btn" id="abtn">Auto-Play: OFF</button></div>
+  </div>
+  <div class="pcard" id="pcard">
+    <div class="nlbl" id="nlbl">Idle &mdash; Click a call or enable Auto-Play</div>
+    <div class="ntg" id="ntg">No transmission selected</div>
+    <div class="nmeta" id="nmeta">--</div>
+    <audio id="plr" controls preload="none"></audio>
+  </div>
+  <div id="clist"></div>
+</main>
+<footer>&copy; 2026 YOUR-WEBSITE &middot; YOUR-CITY &middot; Powered by Trunk Recorder</footer>
+<script>
+const FEED='/calls/calls.json';
+const plr=document.getElementById('plr'),cl=document.getElementById('clist'),st=document.getElementById('st'),ab=document.getElementById('abtn'),fl=document.getElementById('flt');
+let auto=false,seen=new Set(),q=new Array(),cur=null,all=new Array(),busy=false;
+ab.onclick=()=>{
+  auto=!auto;ab.textContent=auto?'Auto-Play: ON':'Auto-Play: OFF';ab.classList.toggle('live',auto);
+  if(auto){
+    if(!plr.src)plr.src='data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+    plr.play().then(()=>{if(!cur){plr.pause();plr.removeAttribute('src');}}).catch(()=>{});
+    if(!busy&&q.length)next();
+  }
+};
+plr.onended=()=>{busy=false;if(auto&&q.length)next();else document.getElementById('nlbl').textContent='Waiting for next call...';};
+plr.onerror=()=>{busy=false;if(auto&&q.length)setTimeout(next,400);};
+const cid=c=>c.audio_url||(c.start_time+'_'+c.talkgroup);
+function agencyInfo(c){
+  const raw=(c.talkgroup_group_tag||c.talkgroup_group||c.talkgroup_tag||'').toLowerCase();
+  if(/fire|fd|rescue|hazmat/.test(raw))return{lbl:c.talkgroup_group_tag||'Fire',col:'#ef4444'};
+  if(/ems|med|amb|hosp/.test(raw))return{lbl:c.talkgroup_group_tag||'EMS',col:'#10b981'};
+  if(/law|pd|police|sheriff|so|patrol|disp/.test(raw))return{lbl:c.talkgroup_group_tag||'Law',col:'#3b82f6'};
+  if(/pw|works|water|street|util|dot/.test(raw))return{lbl:c.talkgroup_group_tag||'Public Works',col:'#f59e0b'};
+  return{lbl:c.talkgroup_group_tag||'Radio',col:'#64748b'};
+}
+function getUnits(c){
+  const list=Array.isArray(c.srcList)?c.srcList:(Array.isArray(c.sources)?c.sources:new Array());
+  const out=new Array(),used=new Set();
+  for(const u of list){
+    const id=u.src||u.id||u;
+    if(!id||used.has(String(id)))continue;
+    used.add(String(id));
+    const tag=u.tag||u.alphaTag||u.name||'';
+    out.push(tag?tag+' ('+id+')':'Unit '+id);
+  }
+  return out;
+}
+function play(c){
+  busy=true;cur=cid(c);seen.add(cur);
+  const tag=c.talkgroup_tag||('TG '+(c.talkgroup||'Unknown')),ag=agencyInfo(c),units=getUnits(c);
+  const frq=c.freq?(Number(c.freq)/1e6).toFixed(4)+' MHz':'';
+  const dt=c.start_time?new Date(c.start_time*1000).toLocaleTimeString():'';
+  const dur=c.call_length?Math.round(c.call_length)+'s':'';
+  document.getElementById('pcard').style.borderLeftColor=ag.col;
+  document.getElementById('nlbl').textContent='Now Playing';
+  document.getElementById('ntg').innerHTML='<span>'+tag+'</span><span class="bdg" style="background:'+ag.col+'">'+ag.lbl+'</span>';
+  document.getElementById('nmeta').textContent=new Array(c.talkgroup?'TG '+c.talkgroup:'',frq,dt,dur,units.length?units.join(', '):'').filter(Boolean).join(' · ');
+  plr.src=c.audio_url;plr.load();
+  plr.play().catch(()=>{busy=false;document.getElementById('nlbl').textContent='Tap play above to allow audio';});
+  render();
+}
+function next(){while(q.length){const n=q.shift();if(!seen.has(cid(n))){play(n);return;}}}
+fl.onchange=render;
+function render(){
+  const f=fl.value,shown=f==='all'?all:all.filter(c=>String(c.talkgroup)===f);
+  cl.innerHTML='';
+  for(const c of shown){
+    const id=cid(c),tag=c.talkgroup_tag||('TG '+(c.talkgroup||'Unknown')),ag=agencyInfo(c),units=getUnits(c);
+    const frq=c.freq?(Number(c.freq)/1e6).toFixed(4)+' MHz':'';
+    const dt=c.start_time?new Date(c.start_time*1000).toLocaleTimeString():'';
+    const dur=c.call_length?Math.round(c.call_length)+'s':'';
+    const uHtml=units.length?'<div class="units">'+units.map(u=>'<span class="uchip">'+u+'</span>').join('')+'</div>':'';
+    const r=document.createElement('div');
+    r.className='crow'+(id===cur?' play':'');
+    r.style.borderLeftColor=id===cur?'#38bdf8':ag.col;
+    r.innerHTML='<div><div class="tgn"><span>'+tag+'</span><span class="bdg" style="background:'+ag.col+'">'+ag.lbl+'</span></div><div class="tgs">TG '+(c.talkgroup||'--')+(frq?' &middot; '+frq:'')+'</div>'+uHtml+'</div><div class="ctm"><div>'+dt+'</div><div class="tgs">'+dur+'</div></div>';
+    r.onclick=()=>play(c);cl.appendChild(r);
+  }
+}
+async function poll(){
+  try{
+    const r=await fetch(FEED+'?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json(),first=all.length===0;
+    all=Array.isArray(d)?d:(d.calls||new Array());
+    const ex=new Set(Array.from(fl.options).map(o=>o.value));
+    for(const c of all){
+      const tg=String(c.talkgroup||'');
+      if(tg&&!ex.has(tg)){ex.add(tg);const o=document.createElement('option');o.value=tg;o.textContent=(c.talkgroup_tag||'TG '+tg)+' ('+tg+')';fl.appendChild(o);}
+    }
+    if(first)all.forEach(c=>seen.add(cid(c)));
+    else{
+      const f=fl.value,fresh=all.filter(c=>!seen.has(cid(c))&&(f==='all'||String(c.talkgroup)===f)).reverse();
+      for(const c of fresh)q.push(c);
+      if(auto&&!busy&&q.length)next();
+    }
+    render();
+    st.textContent='YOUR-CITY · '+all.length+' recent calls ('+new Date().toLocaleTimeString()+')';
+  }catch(e){st.textContent='Feed error: '+e.message;}
+}
+poll();setInterval(poll,4000);
+</script>
+</body>
+</html>
