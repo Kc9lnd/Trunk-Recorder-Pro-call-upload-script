@@ -11,7 +11,7 @@ Automatically upload calls and data to your website
 2. 2. Rebuild calls.json from remaining calls (newest first, up to 200)
 
 
-In the html change YOUR-WEBSITE and YOUR-CITY and modify the html code to match your website or use AI to modify it.
+In the html change YOUR-WEBSITE and YOUR-CITY 3 places and modify the html code to match your website or use AI to modify it.
 
 
 <img width="1706" height="1159" alt="image" src="https://github.com/user-attachments/assets/9df2ff6a-78d0-46ff-8b0e-83945f93ea6a" />
