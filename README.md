@@ -12,3 +12,8 @@ Automatically upload calls and data to your website
 
 
 In the html change YOUR-WEBSITE and YOUR-CITY and modify the html code to match your website or use AI to modify it.
+
+
+<img width="1706" height="1159" alt="image" src="https://github.com/user-attachments/assets/9df2ff6a-78d0-46ff-8b0e-83945f93ea6a" />
+
+<img width="2160" height="1234" alt="image" src="https://github.com/user-attachments/assets/80a05a0b-6cd4-422e-a928-b42444e79c06" />
