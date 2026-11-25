@@ -9,3 +9,6 @@ This script will
 Automatically upload calls and data to your website 
 1. Delete any audio or JSON files older than 24 hours
 2. 2. Rebuild calls.json from remaining calls (newest first, up to 200)
+
+
+In the html change YOUR-WEBSITE and YOUR-CITY and modify the html code to match your website or use AI to modify it.
